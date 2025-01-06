@@ -1,0 +1,98 @@
+map $host $target_demo {
+    # Docker
+    "~^docker\."                    "registry-1.docker.io";
+    "~^docker-dl\."                 "download.docker.com";
+    "~^docker-get\."                "get.docker.com";
+
+    # Github
+    "~^github\."                    "github.com";
+    "~^github-api\."                "api.github.com";
+    "~^ghcr\."                      "ghcr.io";
+
+    # Gitlab
+    "~^gitlab\."                    "gitlab.com";
+
+    # Google
+    "~^gstorage\."                  "storage.googleapis.com";
+    "~^gcr\."                       "gcr.io";
+
+    # K8s
+    "~^k8s-reg\."                   "registry.k8s.io";
+    "~^k8s-dl\."                    "dl.k8s.io";
+    "~^helm\."                      "get.helm.sh";
+
+    # Redhat
+    "~^quay\."                      "quay.io";
+
+    # Python
+    "~^pypi\."                      "pypi.org";
+
+    # PHP
+    "~^composer\."                  "repo.packagist.org";
+
+    # Golang
+    "~^golang\."                    "proxy.golang.com";
+
+    # Nodejs
+    "~^npm\."                       "registry.npmjs.org";
+
+    # Jsdelivr
+    "~^jsdelivr\."                  "cdn.jsdelivr.net";
+
+    # Cdnjs
+    "~^cdnjs\."                     "cdnjs.cloudflare.com";
+
+    # Alpine linux
+    # sed -i 's|https://dl-cdn.alpinelinux.org/|https://alpine.repositoria.ir/|g' /etc/apk/repositories
+    "~^alpine\."                    "dl-cdn.alpinelinux.org";
+
+    # Rocky linux
+    # sed -i 's|#baseurl=http://dl.rockylinux.org/|baseurl=http://rocky.repositoria.ir/|g' /etc/yum.repos.d/*.repo
+    # sed -i 's|mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/*.repo
+    "~^rocky\."                     "dl.rockylinux.org";
+
+    # Raspbian
+    # sed -i 's|http://deb.debian.org/|http://debian.repositoria.ir/|g' /etc/apt/sources.list
+    # sed -i 's|http://archive.raspberrypi.com/|http://raspbian.repositoria.ir/|g' /etc/apt/sources.list.d/*.list
+    "~^raspbian\."                  "archive.raspberrypi.com";
+
+    # Default case
+    default                         "not_found";
+}
+
+server {
+    include include.d/server-ssl.conf;
+    listen 443 ssl http2 reuseport;
+    listen 8443 ssl http2 reuseport;
+    listen 2053 ssl http2 reuseport;
+    listen 2083 ssl http2 reuseport;
+    listen 2087 ssl http2 reuseport;
+    listen 2096 ssl http2 reuseport;
+
+    server_name "~^.+\.repositoria\.ir";
+
+    ssl_certificate /root/certs/repositoria.ir/fullchain.pem;
+    ssl_certificate_key /root/certs/repositoria.ir/privkey.pem;
+    access_log /var/log/nginx/repositoria-demo.access.log json_combined_extended;
+    error_log /var/log/nginx/repositoria-demo.error.log;
+
+    location / {
+        if ($target_demo = "not_found") {
+            return 403;
+        }
+        # Proxy pass the request to the dynamically generated domain
+        proxy_pass https://$target_demo:$server_port;
+        proxy_ssl_name $target_demo;
+        proxy_set_header Host $target_demo;
+        proxy_intercept_errors on;
+        error_page 301 302 307 308 = @redir;
+        include include.d/cache.conf;
+    }
+
+    # Follow redirects
+    location @redir {
+        set $target $upstream_http_location;
+        proxy_pass $target;
+        include include.d/cache.conf;
+    }
+}

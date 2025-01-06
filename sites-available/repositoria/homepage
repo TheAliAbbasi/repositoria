@@ -1,0 +1,16 @@
+server {
+    include include.d/server-ssl.conf;
+    listen 443 ssl http2;
+
+    server_name "repositoria.ir";
+
+    ssl_certificate /root/certs/repositoria.ir/fullchain.pem;
+    ssl_certificate_key /root/certs/repositoria.ir/privkey.pem;
+    access_log /var/log/nginx/repositoria-homepaage.access.log json_combined_extended;
+    error_log /var/log/nginx/repositoria-homepaage.error.log;
+
+    location / {
+        root /var/www/html;
+        index index.html;
+    }
+}

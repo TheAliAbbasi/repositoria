@@ -1,0 +1,50 @@
+map $host $target {
+    # This pattern captures subdomain2 subdomain, domain, and TLD
+    "~^(?<subdomain2>.+)--(?<subdomain>.+)--(?<domain>.+)--(?<tld>[^\.]+)"   "$subdomain2.$subdomain.$domain.$tld";
+
+    # This pattern captures subdomain, domain, and TLD
+    "~^(?<subdomain>.+)--(?<domain>.+)--(?<tld>[^\.]+)"                      "$subdomain.$domain.$tld";
+
+    # Fallback for when subdomain is not present
+    "~^(?<domain>.+)--(?<tld>[^\.]+)"                                        "$domain.$tld";
+
+    # Default case
+    default                                                                  "not_found";
+}
+
+server {
+    include include.d/server-ssl.conf;
+    listen 443 ssl http2 reuseport;
+    listen 8443 ssl http2 reuseport;
+    listen 2053 ssl http2 reuseport;
+    listen 2083 ssl http2 reuseport;
+    listen 2087 ssl http2 reuseport;
+    listen 2096 ssl http2 reuseport;
+
+    server_name ".dockeria.ir";
+
+    ssl_certificate /root/certs/bundle/cert.crt;
+    ssl_certificate_key /root/certs/bundle/private.key;
+    access_log /var/log/nginx/dynamic.access.log json_combined_extended;
+    error_log /var/log/nginx/dynamic.error.log;
+
+    location / {
+        if ($target = "not_found") {
+            return 403;
+        }
+        # Proxy pass the request to the dynamically generated domain
+        proxy_pass https://$target:$server_port;
+        proxy_ssl_name $target;
+        proxy_set_header Host $target;
+        proxy_intercept_errors on;
+        error_page 301 302 307 308 = @redir;
+        include include.d/cache.conf;
+    }
+
+    # Follow redirects
+    location @redir {
+        set $target $upstream_http_location;
+        proxy_pass $target;
+        include include.d/cache.conf;
+    }
+}
