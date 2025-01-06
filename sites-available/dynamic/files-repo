@@ -1,0 +1,55 @@
+server {
+    include include.d/server-ssl.conf;
+    listen 443 ssl http2;
+
+    server_name "files.dockeria.ir";
+
+    ssl_certificate /root/certs/bundle/cert.crt;
+    ssl_certificate_key /root/certs/bundle/private.key;
+    access_log /var/log/nginx/dynamic-files.access.log json_combined_extended;
+    error_log /var/log/nginx/dynamic-files.error.log;
+
+    location ~* ^/(?<domain>[^\.]+)\.(?<tld>[^/\.]+)/(?<req_uri>.*) {
+        set $target "$domain.$tld";
+        # Proxy pass the request to the dynamically generated domain
+        proxy_pass https://$target:$server_port/$req_uri$is_args$args;
+        proxy_ssl_name $target;
+        proxy_set_header Host $target;
+        proxy_intercept_errors on;
+        error_page 301 302 307 308 = @redir;
+        include include.d/cache.conf;
+    }
+
+    location ~* ^/(?<subdomain>[^\.]+)\.(?<domain>[^\.]+)\.(?<tld>[^/\.]+)/(?<req_uri>.*) {
+        set $target "$subdomain.$domain.$tld";
+        # Proxy pass the request to the dynamically generated domain
+        proxy_pass https://$target:$server_port/$req_uri$is_args$args;
+        proxy_ssl_name $target;
+        proxy_set_header Host $target;
+        proxy_intercept_errors on;
+        error_page 301 302 307 308 = @redir;
+        include include.d/cache.conf;
+    }
+
+    location ~* ^/(?<subdomain2>[^\.]+)\.(?<subdomain>[^\.]+)\.(?<domain>[^\.]+)\.(?<tld>[^/\.]+)/(?<req_uri>.*) {
+        set $target "$subdomain2.$subdomain.$domain.$tld";
+        # Proxy pass the request to the dynamically generated domain
+        proxy_pass https://$target:$server_port/$req_uri$is_args$args;
+        proxy_ssl_name $target;
+        proxy_set_header Host $target;
+        proxy_intercept_errors on;
+        error_page 301 302 307 308 = @redir;
+        include include.d/cache.conf;
+    }
+
+    location / {
+        return 403;
+    }
+
+    # Follow redirects
+    location @redir {
+        set $target $upstream_http_location;
+        proxy_pass $target;
+        include include.d/cache.conf;
+    }
+}
